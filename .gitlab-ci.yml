@@ -1,0 +1,52 @@
+# Ops One AG - Gitlab CD example pipeline
+
+# define the stages in this pipeline
+stages:
+  - build
+  - deploy
+
+# define the build stage
+build_stage:
+  stage: build
+  # use node docker image as enviroment
+  image: node:14.15
+  script:
+    # install & build the NuxtJS application
+    - npm install
+    - npm run build
+  # define artifacts which are shared between stages
+  artifacts:
+    paths:
+      - .nuxt/
+      - node_modules/
+
+  # restrict to specific branch
+  only:
+    - master
+
+# define the deploy stage
+deploy_stage:
+  stage: deploy
+  # use our deploy image
+  image: debian:10
+  # install needed packages
+  # add the SSH key from the variable SSH_DEPLOY_KEY and disable StrictHostKeyChecking
+  before_script:
+    - apt-get update && apt-get install --yes --no-install-recommends rsync git openssh-client curl
+    - eval $(ssh-agent -s)
+    - ssh-add <(echo "${SSH_DEPLOY_KEY}")
+    - mkdir -p ~/.ssh
+    - '[[ -f /.dockerenv ]] && echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config'
+
+  script:
+    # deploy application and server configuration
+    - rsync --archive --delete ${CI_PROJECT_DIR}/ ${DEPLOY_USER}@${DEPLOY_SERVER}:~/opsone-demo/
+    - rsync --archive --delete ${CI_PROJECT_DIR}/cnf/ ${DEPLOY_USER}@${DEPLOY_SERVER}:~/cnf/
+
+    # restart Node.js and reload nginx configuration
+    - ssh ${DEPLOY_USER}@${DEPLOY_SERVER} nodejs-restart
+    - ssh ${DEPLOY_USER}@${DEPLOY_SERVER} nginx-reload
+
+  # restrict to specific branch
+  only:
+    - master

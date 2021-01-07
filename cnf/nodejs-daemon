@@ -1,0 +1,4 @@
+APPDIR=opsone-demo
+export PATH=${NODEJS_HOME}/${APPDIR}/node_modules/.bin/:$PATH
+DAEMON="nuxt"
+OPTIONS="start ${APPDIR}"
